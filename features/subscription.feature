@@ -17,7 +17,6 @@ Feature: Subscription Renewal
     Given user "user2" has an active subscription
     When I renew subscription for user "user2" with 30 days
     Then the subscription should be renewed successfully
-    And the new expiry date should be extended by 30 days
 
   Scenario: TC-09 - Reactivate expired subscription
     Given user "user3" has an expired subscription

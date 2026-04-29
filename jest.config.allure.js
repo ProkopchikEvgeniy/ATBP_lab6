@@ -1,8 +1,7 @@
 module.exports = {
-  preset: 'babel-jest',
   testEnvironment: 'node',
   testMatch: ['**/__tests__/**/*.test.js'],
-  setupFilesAfterEnv: ['allure-jest'],
+  // Убираем setupFilesAfterEnv для тестирования
   reporters: [
     'default',
     ['allure-jest', {
@@ -10,4 +9,7 @@ module.exports = {
       cleanResultsDir: true,
     }]
   ],
+  transform: {},
+  // Добавляем игнорирование node_modules
+  testPathIgnorePatterns: ['/node_modules/'],
 };

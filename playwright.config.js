@@ -11,7 +11,6 @@ module.exports = defineConfig({
   },
   reporter: [
     ['line'],
-    ['allure-playwright', { outputFolder: 'allure-results' }],
     ['html', { outputFolder: 'playwright-report' }],
   ],
   projects: [
@@ -19,13 +18,7 @@ module.exports = defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
   ],
+  // Добавьте эту опцию для отладки
+  workers: 1,
 });

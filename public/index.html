@@ -3,27 +3,32 @@
 <head>
     <title>Subscription Management</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        .container { max-width: 600px; margin: auto; }
-        input, button { margin: 10px; padding: 10px; }
-        button { cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 4px; }
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #333; }
+        input, button { margin: 10px; padding: 10px; border-radius: 4px; }
+        input { border: 1px solid #ddd; width: 200px; }
+        button { cursor: pointer; background-color: #007bff; color: white; border: none; }
         button:hover { background-color: #0056b3; }
-        #subscriptionDetails { margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; }
-        .success { color: green; }
-        .error { color: red; }
+        #subscriptionDetails { margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9; }
+        #renewalMessage { margin-top: 10px; padding: 10px; border-radius: 4px; }
+        .success { color: green; background: #e8f5e9; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .error { color: red; background: #ffebee; padding: 10px; margin: 10px 0; border-radius: 4px; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Subscription Management</h1>
         <div>
-            <h3>Renew Subscription</h3>
-            <input type="text" id="userId" placeholder="Enter User ID" />
-            <button id="viewSubscriptionBtn">View Subscription</button>
-            <button id="renewBtn">Renew</button>
-            <button id="cancelBtn">Cancel</button>
+            <h3>Manage Subscription</h3>
+            <input type="text" id="userId" placeholder="Enter User ID (user1, user2, user3)" />
+            <div style="margin-top: 10px;">
+                <button id="viewSubscriptionBtn">View Subscription</button>
+                <button id="renewBtn">Renew (30 days)</button>
+                <button id="cancelBtn">Cancel Subscription</button>
+            </div>
         </div>
-        <div id="subscriptionDetails"></div>
+        <div id="subscriptionDetails" style="display: none;"></div>
         <div id="renewalMessage"></div>
     </div>
     <script>
@@ -34,48 +39,95 @@
         const detailsDiv = document.getElementById('subscriptionDetails');
         const messageDiv = document.getElementById('renewalMessage');
 
-        async function fetchSubscription() {
-            const userId = userIdInput.value;
-            const response = await fetch(`/api/subscription/${userId}`);
-            if (response.ok) {
-                const data = await response.json();
-                detailsDiv.innerHTML = `
-                    <h3>Subscription Details</h3>
-                    <p>Plan: ${data.plan}</p>
-                    <p>Status: ${data.status}</p>
-                    <p>Expiry Date: ${data.expiryDate}</p>
-                    <p>Auto-renew: ${data.autoRenew}</p>
-                    <p>Payment Method: ${data.paymentMethod}</p>
-                `;
+        function showMessage(text, isSuccess = true) {
+            messageDiv.innerHTML = `<div class="${isSuccess ? 'success' : 'error'}">${text}</div>`;
+            setTimeout(() => {
                 messageDiv.innerHTML = '';
-            } else {
-                detailsDiv.innerHTML = '<p class="error">User not found</p>';
+            }, 5000);
+        }
+
+        async function fetchSubscription() {
+            const userId = userIdInput.value.trim();
+            if (!userId) {
+                showMessage('Please enter a User ID', false);
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/subscription/${userId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    detailsDiv.style.display = 'block';
+                    detailsDiv.innerHTML = `
+                        <h3>Subscription Details for ${userId}</h3>
+                        <p><strong>Plan:</strong> ${data.plan}</p>
+                        <p><strong>Status:</strong> ${data.status}</p>
+                        <p><strong>Expiry Date:</strong> ${data.expiryDate}</p>
+                        <p><strong>Auto-renew:</strong> ${data.autoRenew}</p>
+                        <p><strong>Payment Method:</strong> ${data.paymentMethod}</p>
+                    `;
+                    showMessage(`Loaded subscription for ${userId}`);
+                } else {
+                    const error = await response.json();
+                    detailsDiv.style.display = 'none';
+                    showMessage(error.error || 'User not found', false);
+                }
+            } catch (error) {
+                showMessage('Error fetching subscription', false);
+            }
+        }
+
+        async function renewSubscription() {
+            const userId = userIdInput.value.trim();
+            if (!userId) {
+                showMessage('Please enter a User ID', false);
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/subscription/${userId}/renew`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ duration: 30 })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    showMessage(`✅ ${data.message} for ${userId}`);
+                    await fetchSubscription(); // Обновляем детали
+                } else {
+                    showMessage(`❌ ${data.error}`, false);
+                }
+            } catch (error) {
+                showMessage('Error renewing subscription', false);
+            }
+        }
+
+        async function cancelSubscription() {
+            const userId = userIdInput.value.trim();
+            if (!userId) {
+                showMessage('Please enter a User ID', false);
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/subscription/${userId}/cancel`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    showMessage(`✅ ${data.message}`);
+                    await fetchSubscription();
+                } else {
+                    showMessage(`❌ ${data.error}`, false);
+                }
+            } catch (error) {
+                showMessage('Error cancelling subscription', false);
             }
         }
 
         viewBtn.addEventListener('click', fetchSubscription);
-        
-        renewBtn.addEventListener('click', async () => {
-            const userId = userIdInput.value;
-            const response = await fetch(`/api/subscription/${userId}/renew`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ duration: 30 })
-            });
-            const data = await response.json();
-            messageDiv.innerHTML = `<p class="success">${data.message}</p>`;
-            fetchSubscription();
-        });
-        
-        cancelBtn.addEventListener('click', async () => {
-            const userId = userIdInput.value;
-            const response = await fetch(`/api/subscription/${userId}/cancel`, {
-                method: 'POST'
-            });
-            const data = await response.json();
-            messageDiv.innerHTML = `<p class="success">${data.message}</p>`;
-            fetchSubscription();
-        });
+        renewBtn.addEventListener('click', renewSubscription);
+        cancelBtn.addEventListener('click', cancelSubscription);
     </script>
 </body>
 </html>
