@@ -11,7 +11,6 @@ env:
   ALLURE_RESULTS_DIR: allure-results
 
 jobs:
-  # Unit Tests
   unit-tests:
     runs-on: ubuntu-latest
     strategy:
@@ -31,7 +30,6 @@ jobs:
           name: allure-results-jest-node${{ matrix.node-version }}
           path: allure-results/
 
-  # API Tests
   api-tests:
     runs-on: ubuntu-latest
     strategy:
@@ -55,7 +53,6 @@ jobs:
           name: allure-results-cucumber-node${{ matrix.node-version }}
           path: allure-results/
 
-  # UI Tests
   ui-tests:
     runs-on: ubuntu-latest
     strategy:
@@ -81,7 +78,6 @@ jobs:
           name: allure-results-playwright-node${{ matrix.node-version }}
           path: allure-results/
 
-  # Generate Allure Report
   allure-report:
     runs-on: ubuntu-latest
     needs: [unit-tests, api-tests, ui-tests]
@@ -106,51 +102,46 @@ jobs:
           path: allure-report/
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main'
-        uses: peaceiris/actions-gh-pages@v4
+        uses: peaceiris/actions-gh-pages@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          personal_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./allure-report
+          publish_branch: gh-pages
           destination_dir: allure-reports/${{ github.run_number }}
 
-  # Telegram Notification
   notify-telegram:
     runs-on: ubuntu-latest
     needs: [unit-tests, api-tests, ui-tests]
     if: always()
     steps:
-      - name: Check test status
+      - name: Check status
         id: status
         run: |
           if [[ "${{ needs.unit-tests.result }}" == "success" ]] && \
              [[ "${{ needs.api-tests.result }}" == "success" ]] && \
              [[ "${{ needs.ui-tests.result }}" == "success" ]]; then
             echo "result=✅ PASSED" >> $GITHUB_OUTPUT
-            echo "message=All 13 tests passed successfully!" >> $GITHUB_OUTPUT
+            echo "message=All 13 tests passed!" >> $GITHUB_OUTPUT
           else
             echo "result=❌ FAILED" >> $GITHUB_OUTPUT
-            echo "message=Some tests failed. Check the report!" >> $GITHUB_OUTPUT
+            echo "message=Some tests failed!" >> $GITHUB_OUTPUT
           fi
       
-      - name: Send Telegram notification
-        uses: appleboy/telegram-action@v4
+      - name: Send Telegram
+        uses: appleboy/telegram-action@v1
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: |
             🚀 CI/CD Pipeline - Subscription Service
             
-            📦 Repository: ${{ github.repository }}
-            🌿 Branch: ${{ github.ref_name }}
-            🔑 Commit: ${{ github.sha }}
-            👤 Author: ${{ github.actor }}
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
             
-            📊 Test Results: ${{ steps.status.outputs.result }}
+            📊 Results: ${{ steps.status.outputs.result }}
             
-            📋 Details:
-            • Unit Tests (6): ${{ needs.unit-tests.result }}
-            • API Tests (4): ${{ needs.api-tests.result }}
-            • UI Tests (3): ${{ needs.ui-tests.result }}
+            Unit Tests: ${{ needs.unit-tests.result }}
+            API Tests: ${{ needs.api-tests.result }}
+            UI Tests: ${{ needs.ui-tests.result }}
             
             ${{ steps.status.outputs.message }}
-            
-            🔗 Allure Report: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure-reports/${{ github.run_number }}/
