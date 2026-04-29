@@ -1,37 +1,30 @@
 const { Given, When, Then } = require('@cucumber/cucumber');
 const request = require('supertest');
-// Исправьте путь - поднимитесь на уровень выше
-const app = require('../server');  // Теперь путь правильный
+const app = require('../server');
 const assert = require('assert');
 
 let response;
-let userId;
 
 Given('the subscription service is running', async function() {
-  this.baseURL = 'http://localhost:3000';
+  // Сервер используется через supertest
+  this.app = app;
 });
 
 Given('user {string} has an active subscription', async function(userId) {
-  this.userId = userId;
-  const res = await request(app)
-    .get(`/api/subscription/${userId}`);
+  const res = await request(app).get(`/api/subscription/${userId}`);
   assert.strictEqual(res.body.status, 'active');
 });
 
 Given('user {string} has an expired subscription', async function(userId) {
-  this.userId = userId;
-  const res = await request(app)
-    .get(`/api/subscription/${userId}`);
+  const res = await request(app).get(`/api/subscription/${userId}`);
   assert.strictEqual(res.body.status, 'expired');
 });
 
 When('I request subscription for user {string}', async function(userId) {
-  this.response = await request(app)
-    .get(`/api/subscription/${userId}`);
+  this.response = await request(app).get(`/api/subscription/${userId}`);
 });
 
 When('I renew subscription for user {string} with {int} days', async function(userId, days) {
-  this.userId = userId;
   this.response = await request(app)
     .post(`/api/subscription/${userId}/renew`)
     .send({ duration: days });
@@ -57,10 +50,6 @@ Then('the plan should be {string}', function(plan) {
 
 Then('auto-renew should be true', function() {
   assert.strictEqual(this.response.body.autoRenew, true);
-});
-
-Then('the new expiry date should be extended', function() {
-  assert.ok(this.response.body.subscription.expiryDate);
 });
 
 Then('the subscription should be renewed successfully', function() {

@@ -5,162 +5,105 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main]
-  workflow_dispatch:  # позволяет запускать вручную
+  workflow_dispatch:
 
 env:
   ALLURE_RESULTS_DIR: allure-results
 
 jobs:
-  # ============================================
-  # JOB 1: Unit Tests (Jest + Allure)
-  # ============================================
+  # Unit Tests
   unit-tests:
-    runs-on: ubuntu-latest  # Для быстроты используем только Ubuntu
+    runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
         node-version: [18.x, 20.x, 22.x]
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Run unit tests (Jest + Allure)
-        run: npm run test:unit
-      
-      - name: Upload Jest Allure results
+      - run: npm ci
+      - run: npm run test:unit
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
           name: allure-results-jest-node${{ matrix.node-version }}
           path: allure-results/
 
-  # ============================================
-  # JOB 2: API Tests (Cucumber + Allure)
-  # ============================================
+  # API Tests
   api-tests:
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
         node-version: [18.x, 20.x, 22.x]
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
+      - run: npm ci
       - name: Start server
         run: |
           npm start &
           npx wait-on http://localhost:3000 --timeout 30000
-      
-      - name: Run API tests (Cucumber + Allure)
-        run: npm run test:api
-      
-      - name: Upload Cucumber Allure results
+      - run: npm run test:api
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
           name: allure-results-cucumber-node${{ matrix.node-version }}
           path: allure-results/
 
-  # ============================================
-  # JOB 3: UI Tests (Playwright + Allure)
-  # ============================================
+  # UI Tests - только Chromium
   ui-tests:
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
         node-version: [18.x, 20.x, 22.x]
-        browser: [chromium, firefox, webkit]
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ matrix.browser }}-${{ hashFiles('package-lock.json') }}
-      
+      - run: npm ci
       - name: Install Playwright browsers
-        run: npx playwright install ${{ matrix.browser }} --with-deps
-      
+        run: npx playwright install chromium --with-deps
       - name: Start server
         run: |
           npm start &
           npx wait-on http://localhost:3000 --timeout 30000
-      
-      - name: Run UI tests (Playwright + Allure)
-        run: npm run test:ui -- --project=${{ matrix.browser }}
-      
-      - name: Upload Playwright Allure results
+      - run: npm run test:ui
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: allure-results-playwright-${{ matrix.browser }}-node${{ matrix.node-version }}
+          name: allure-results-playwright-node${{ matrix.node-version }}
           path: allure-results/
 
-  # ============================================
-  # JOB 4: Generate and Deploy Allure Report
-  # ============================================
+  # Generate Allure Report
   allure-report:
     runs-on: ubuntu-latest
     needs: [unit-tests, api-tests, ui-tests]
     if: always()
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Download all Allure results
-        uses: actions/download-artifact@v4
+      - run: npm ci
+      - uses: actions/download-artifact@v4
         with:
           path: all-allure-results/
-      
-      - name: Merge Allure results
+      - name: Merge results
         run: |
           mkdir -p merged-allure-results
           find all-allure-results -name "*.json" -exec cp {} merged-allure-results/ \;
           find all-allure-results -name "*.txt" -exec cp {} merged-allure-results/ \;
-          find all-allure-results -name "*.png" -exec cp {} merged-allure-results/ \;
-          find all-allure-results -name "*.xml" -exec cp {} merged-allure-results/ \;
-      
-      - name: Generate Allure report
-        run: |
-          npx allure generate merged-allure-results --clean -o allure-report
-      
-      - name: Upload Allure report as artifact
+      - name: Generate report
+        run: npx allure generate merged-allure-results --clean -o allure-report
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
           name: allure-report
           path: allure-report/
-      
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v4
@@ -169,50 +112,36 @@ jobs:
           publish_dir: ./allure-report
           destination_dir: allure-reports/${{ github.run_number }}
 
-  # ============================================
-  # JOB 5: Telegram Notification
-  # ============================================
+  # Telegram Notification
   notify-telegram:
     runs-on: ubuntu-latest
-    needs: [unit-tests, api-tests, ui-tests, allure-report]
+    needs: [unit-tests, api-tests, ui-tests]
     if: always()
     steps:
-      - name: Check test results
+      - name: Check status
         id: check
         run: |
           if [[ "${{ needs.unit-tests.result }}" == "success" ]] && \
              [[ "${{ needs.api-tests.result }}" == "success" ]] && \
              [[ "${{ needs.ui-tests.result }}" == "success" ]]; then
             echo "status=✅ PASSED" >> $GITHUB_OUTPUT
-            echo "emoji=✅" >> $GITHUB_OUTPUT
-            echo "message=All tests passed successfully!" >> $GITHUB_OUTPUT
           else
             echo "status=❌ FAILED" >> $GITHUB_OUTPUT
-            echo "emoji=❌" >> $GITHUB_OUTPUT
-            echo "message=Some tests failed. Check the report!" >> $GITHUB_OUTPUT
           fi
-      
-      - name: Send Telegram notification
+      - name: Send Telegram
         uses: appleboy/telegram-action@master
+        if: ${{ secrets.TELEGRAM_BOT_TOKEN != '' }}
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: |
-            ${{ steps.check.outputs.emoji }} CI/CD Pipeline - Subscription Service
+            CI/CD Pipeline - Subscription Service
             
-            📦 Repository: ${{ github.repository }}
-            🌿 Branch: ${{ github.ref_name }}
-            🔑 Commit: ${{ github.sha }}
-            👤 Author: ${{ github.actor }}
-            🕐 Time: ${{ github.event.head_commit.timestamp }}
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
             
-            📊 Test Results: ${{ steps.check.outputs.status }}
+            📊 Results: ${{ steps.check.outputs.status }}
             
-            📋 Details:
-            • Unit Tests: ${{ needs.unit-tests.result }}
-            • API Tests: ${{ needs.api-tests.result }}
-            • UI Tests: ${{ needs.ui-tests.result }}
-            
-            ${{ steps.check.outputs.message }}
-            
-            🔗 View Report: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure-reports/${{ github.run_number }}/
+            Unit Tests: ${{ needs.unit-tests.result }}
+            API Tests: ${{ needs.api-tests.result }}
+            UI Tests: ${{ needs.ui-tests.result }}

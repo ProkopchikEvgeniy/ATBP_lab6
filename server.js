@@ -5,7 +5,7 @@ const port = 3000;
 app.use(express.json());
 app.use(express.static('public'));
 
-// Хранилище подписок (в реальном приложении использовалась бы БД)
+// Хранилище подписок
 let subscriptions = {
   'user1': {
     plan: 'basic',
@@ -31,8 +31,6 @@ let subscriptions = {
 };
 
 // API endpoints
-
-// Получение информации о подписке
 app.get('/api/subscription/:userId', (req, res) => {
   const { userId } = req.params;
   const subscription = subscriptions[userId];
@@ -44,10 +42,9 @@ app.get('/api/subscription/:userId', (req, res) => {
   res.json(subscription);
 });
 
-// Продление подписки
 app.post('/api/subscription/:userId/renew', (req, res) => {
   const { userId } = req.params;
-  const { duration = 30 } = req.body; // duration in days
+  const { duration = 30 } = req.body;
   
   const subscription = subscriptions[userId];
   
@@ -56,7 +53,6 @@ app.post('/api/subscription/:userId/renew', (req, res) => {
   }
   
   if (subscription.status === 'active') {
-    // Продлеваем существующую активную подписку
     const currentExpiry = new Date(subscription.expiryDate);
     const newExpiry = new Date(currentExpiry);
     newExpiry.setDate(newExpiry.getDate() + duration);
@@ -68,7 +64,6 @@ app.post('/api/subscription/:userId/renew', (req, res) => {
       subscription
     });
   } else if (subscription.status === 'expired') {
-    // Возобновляем истекшую подписку
     const newExpiry = new Date();
     newExpiry.setDate(newExpiry.getDate() + duration);
     subscription.status = 'active';
@@ -79,10 +74,11 @@ app.post('/api/subscription/:userId/renew', (req, res) => {
       message: 'Subscription reactivated successfully',
       subscription
     });
+  } else {
+    res.status(400).json({ error: 'Cannot renew subscription in current status' });
   }
 });
 
-// Отмена подписки
 app.post('/api/subscription/:userId/cancel', (req, res) => {
   const { userId } = req.params;
   const subscription = subscriptions[userId];
@@ -100,7 +96,6 @@ app.post('/api/subscription/:userId/cancel', (req, res) => {
   });
 });
 
-// Обновление метода оплаты
 app.put('/api/subscription/:userId/payment-method', (req, res) => {
   const { userId } = req.params;
   const { paymentMethod } = req.body;
@@ -119,8 +114,11 @@ app.put('/api/subscription/:userId/payment-method', (req, res) => {
   });
 });
 
-app.listen(port, () => {
-  console.log(`Subscription service running at http://localhost:${port}`);
-});
+// Запуск сервера только если файл запущен напрямую
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`Subscription service running at http://localhost:${port}`);
+  });
+}
 
 module.exports = app;
