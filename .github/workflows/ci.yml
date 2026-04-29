@@ -100,14 +100,6 @@ jobs:
         with:
           name: allure-report
           path: allure-report/
-      - name: Deploy to GitHub Pages
-        if: github.ref == 'refs/heads/main'
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          personal_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./allure-report
-          publish_branch: gh-pages
-          destination_dir: allure-reports/${{ github.run_number }}
 
   notify-telegram:
     runs-on: ubuntu-latest
@@ -121,14 +113,14 @@ jobs:
              [[ "${{ needs.api-tests.result }}" == "success" ]] && \
              [[ "${{ needs.ui-tests.result }}" == "success" ]]; then
             echo "result=✅ PASSED" >> $GITHUB_OUTPUT
-            echo "message=All 13 tests passed!" >> $GITHUB_OUTPUT
+            echo "message=All 13 tests passed successfully!" >> $GITHUB_OUTPUT
           else
             echo "result=❌ FAILED" >> $GITHUB_OUTPUT
-            echo "message=Some tests failed!" >> $GITHUB_OUTPUT
+            echo "message=Some tests failed. Check the report!" >> $GITHUB_OUTPUT
           fi
       
       - name: Send Telegram
-        uses: appleboy/telegram-action@v1
+        uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -137,11 +129,12 @@ jobs:
             
             Repository: ${{ github.repository }}
             Branch: ${{ github.ref_name }}
+            Author: ${{ github.actor }}
             
             📊 Results: ${{ steps.status.outputs.result }}
             
-            Unit Tests: ${{ needs.unit-tests.result }}
-            API Tests: ${{ needs.api-tests.result }}
-            UI Tests: ${{ needs.ui-tests.result }}
+            Unit Tests (6): ${{ needs.unit-tests.result }}
+            API Tests (4): ${{ needs.api-tests.result }}
+            UI Tests (3): ${{ needs.ui-tests.result }}
             
             ${{ steps.status.outputs.message }}
